@@ -17,6 +17,9 @@ class TestCLI:
         assert "strategise" in result.output
         assert "generate" in result.output
         assert "run" in result.output
+        assert "validate" in result.output
+        assert "gaps" in result.output
+        assert "watch" in result.output
 
     def test_analyse(self, tmp_path: Path):
         (tmp_path / "sample.py").write_text("def hello(): pass\n")
@@ -24,6 +27,18 @@ class TestCLI:
         assert result.exit_code == 0
         assert "Codebase Analysis" in result.output
         assert "Modules" in result.output
+
+    def test_analyse_json(self, tmp_path: Path):
+        (tmp_path / "sample.py").write_text("def hello(): pass\n")
+        result = runner.invoke(app, ["analyse", str(tmp_path), "--format", "json"])
+        assert result.exit_code == 0
+        assert '"total_functions"' in result.output
+
+    def test_analyse_yaml(self, tmp_path: Path):
+        (tmp_path / "sample.py").write_text("def hello(): pass\n")
+        result = runner.invoke(app, ["analyse", str(tmp_path), "--format", "yaml"])
+        assert result.exit_code == 0
+        assert "total_functions:" in result.output
 
     def test_analyse_empty_dir(self, tmp_path: Path):
         result = runner.invoke(app, ["analyse", str(tmp_path)])
@@ -36,6 +51,12 @@ class TestCLI:
         assert result.exit_code == 0
         assert "Test Strategy" in result.output
 
+    def test_strategise_json(self, tmp_path: Path):
+        (tmp_path / "sample.py").write_text("def greet(name): pass\n")
+        result = runner.invoke(app, ["strategise", str(tmp_path), "--format", "json"])
+        assert result.exit_code == 0
+        assert '"total_test_cases"' in result.output
+
     def test_strategise_with_layers(self, tmp_path: Path):
         (tmp_path / "sample.py").write_text("def greet(name): pass\n")
         result = runner.invoke(app, ["strategise", str(tmp_path), "--layers", "unit"])
@@ -46,7 +67,7 @@ class TestCLI:
         src.mkdir()
         (src / "app.py").write_text("def handler(): pass\n")
         out = tmp_path / "out"
-        result = runner.invoke(app, ["generate", str(src), "--output-dir", str(out), "--layers", "unit"])
+        result = runner.invoke(app, ["generate", str(src), "--output-dir", str(out), "--layers", "unit", "--no-dedup"])
         assert result.exit_code == 0
 
     def test_run_dry_run(self, tmp_path: Path):
@@ -64,3 +85,28 @@ class TestCLI:
         result = runner.invoke(app, ["run", str(src), "--layers", "unit", "--output-dir", str(out)])
         assert result.exit_code == 0
         assert "Dry run: no" in result.output
+
+    def test_validate(self, tmp_path: Path):
+        (tmp_path / "test_ok.py").write_text("def test_foo(): assert True\n")
+        result = runner.invoke(app, ["validate", str(tmp_path)])
+        assert result.exit_code == 0
+        assert "PASS" in result.output
+
+    def test_gaps(self, tmp_path: Path):
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "utils.py").write_text("def foo(): pass\ndef bar(): pass\n")
+        tests = src / "tests"
+        tests.mkdir()
+        (tests / "test_utils.py").write_text("def test_foo(): pass\n")
+        result = runner.invoke(app, ["gaps", str(src), "--test-dir", str(tests)])
+        assert result.exit_code == 0
+        assert "Coverage Gap" in result.output
+
+    def test_gaps_json(self, tmp_path: Path):
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "utils.py").write_text("def foo(): pass\n")
+        result = runner.invoke(app, ["gaps", str(src), "--format", "json"])
+        assert result.exit_code == 0
+        assert '"coverage_percent"' in result.output

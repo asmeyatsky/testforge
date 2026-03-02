@@ -140,19 +140,49 @@ class TestUATGenerator:
 
 
 class TestSoakGenerator:
-    def test_generates_placeholder(self, tmp_path: Path):
+    def test_generates_k6_script(self, tmp_path: Path):
+        strategy = TestStrategy(
+            suites=(
+                TestSuite(layer=TestLayer.INTEGRATION, test_cases=(
+                    TestCase(name="test_get_users", target_function="get_users",
+                             target_module="app.py", layer=TestLayer.INTEGRATION, tags=("api", "get")),
+                )),
+            ),
+        )
         gen = SoakGenerator()
-        strategy = TestStrategy(suites=(TestSuite(layer=TestLayer.SOAK),))
         gen.generate(strategy, tmp_path)
-        assert (tmp_path / "README_soak.md").exists()
+        assert (tmp_path / "soak_test.js").exists()
+        content = (tmp_path / "soak_test.js").read_text()
+        assert "k6/http" in content
+        assert "get_users" in content
+
+    def test_empty_returns_empty_suite(self, tmp_path: Path):
+        gen = SoakGenerator()
+        suite = gen.generate(TestStrategy(), tmp_path)
+        assert suite.size == 0
 
 
 class TestPerformanceGenerator:
-    def test_generates_placeholder(self, tmp_path: Path):
+    def test_generates_k6_script(self, tmp_path: Path):
+        strategy = TestStrategy(
+            suites=(
+                TestSuite(layer=TestLayer.INTEGRATION, test_cases=(
+                    TestCase(name="test_get_users", target_function="get_users",
+                             target_module="app.py", layer=TestLayer.INTEGRATION, tags=("api", "get")),
+                )),
+            ),
+        )
         gen = PerformanceGenerator()
-        strategy = TestStrategy(suites=(TestSuite(layer=TestLayer.PERFORMANCE),))
         gen.generate(strategy, tmp_path)
-        assert (tmp_path / "README_performance.md").exists()
+        assert (tmp_path / "performance_test.js").exists()
+        content = (tmp_path / "performance_test.js").read_text()
+        assert "k6/http" in content
+        assert "p(95)" in content
+
+    def test_empty_returns_empty_suite(self, tmp_path: Path):
+        gen = PerformanceGenerator()
+        suite = gen.generate(TestStrategy(), tmp_path)
+        assert suite.size == 0
 
 
 class TestTypeScriptScanner:

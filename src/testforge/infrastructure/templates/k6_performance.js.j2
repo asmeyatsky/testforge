@@ -1,19 +1,85 @@
-{# k6 performance test template — stub for Phase 4 #}
-// Auto-generated performance test — Phase 4
-// Target: {{ module_path }}
+// Auto-generated k6 performance test by TestForge
+// Validates throughput and latency under load
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
+import { Rate, Trend } from 'k6/metrics';
+
+const errorRate = new Rate('errors');
+const responseTime = new Trend('response_time');
+
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:8000';
 
 export const options = {
-  vus: 50,
-  duration: '5m',
+  scenarios: {
+    ramp_up: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: '30s', target: 20 },
+        { duration: '1m', target: 50 },
+        { duration: '30s', target: 100 },
+        { duration: '2m', target: 100 },
+        { duration: '30s', target: 0 },
+      ],
+    },
+  },
   thresholds: {
-    http_req_duration: ['p(95)<500'],
+    errors: ['rate<0.05'],              // <5% error rate
+    http_req_duration: ['p(95)<500'],   // 95th percentile < 500ms
+    http_req_duration: ['p(99)<1000'],  // 99th percentile < 1s
   },
 };
 
+{% if endpoints %}
+const ENDPOINTS = [
+  {% for ep in endpoints %}
+  { method: '{{ ep.method }}', path: '{{ ep.path }}', name: '{{ ep.name }}' },
+  {% endfor %}
+];
+
 export default function () {
-  // TODO: implement performance test
-  sleep(1);
+  for (const ep of ENDPOINTS) {
+    const url = `${BASE_URL}${ep.path}`;
+    let res;
+
+    switch (ep.method) {
+      case 'POST':
+        res = http.post(url, JSON.stringify({}), {
+          headers: { 'Content-Type': 'application/json' },
+          tags: { name: ep.name },
+        });
+        break;
+      case 'PUT':
+        res = http.put(url, JSON.stringify({}), {
+          headers: { 'Content-Type': 'application/json' },
+          tags: { name: ep.name },
+        });
+        break;
+      case 'DELETE':
+        res = http.del(url, null, { tags: { name: ep.name } });
+        break;
+      default:
+        res = http.get(url, { tags: { name: ep.name } });
+    }
+
+    responseTime.add(res.timings.duration);
+
+    const success = check(res, {
+      [`${ep.name} status OK`]: (r) => r.status >= 200 && r.status < 400,
+      [`${ep.name} p95 < 500ms`]: (r) => r.timings.duration < 500,
+    });
+
+    errorRate.add(!success);
+  }
+
+  sleep(0.5);
 }
+{% else %}
+export default function () {
+  const res = http.get(`${BASE_URL}/`);
+  responseTime.add(res.timings.duration);
+  check(res, { 'status is 200': (r) => r.status === 200 });
+  sleep(0.5);
+}
+{% endif %}

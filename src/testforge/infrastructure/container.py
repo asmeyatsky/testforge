@@ -14,6 +14,7 @@ from testforge.infrastructure.generators.performance_generator import Performanc
 from testforge.infrastructure.generators.soak_generator import SoakGenerator
 from testforge.infrastructure.generators.uat_generator import UATGenerator
 from testforge.infrastructure.generators.unit_generator import UnitTestGenerator
+from testforge.infrastructure.scanners.multi_scanner import MultiScanner
 from testforge.infrastructure.scanners.python_scanner import PythonScanner
 from testforge.infrastructure.scanners.typescript_scanner import TypeScriptScanner
 
@@ -53,8 +54,11 @@ class Container:
     def filesystem(self) -> FileSystemAdapter:
         return self._fs
 
-    def scanner(self, language: str | None = None) -> PythonScanner | TypeScriptScanner:
-        lang = language or self._config.get("project", {}).get("languages", ["python"])[0]
+    def scanner(self, language: str | None = None) -> PythonScanner | TypeScriptScanner | MultiScanner:
+        langs = self._config.get("project", {}).get("languages", ["python"])
+        lang = language or (langs[0] if langs else "python")
+        if lang == "auto" or len(langs) > 1:
+            return MultiScanner()
         if lang in ("typescript", "javascript"):
             return TypeScriptScanner()
         return PythonScanner()

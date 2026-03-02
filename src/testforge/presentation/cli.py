@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+import enum
+import json as json_mod
 from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
+import yaml
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+
+
+class OutputFormat(str, enum.Enum):
+    rich = "rich"
+    json = "json"
+    yaml = "yaml"
 
 from testforge.application.commands import (
     AnalyseCodebaseCommand,
@@ -75,16 +84,24 @@ def _get_container(config: str | None) -> Container:
 def analyse(
     path: Annotated[Path, typer.Argument(help="Path to codebase root")] = Path("."),
     config: Annotated[Optional[str], typer.Option("--config", "-c", help="Config file path")] = None,
+    format: Annotated[OutputFormat, typer.Option("--format", "-f", help="Output format")] = OutputFormat.rich,
 ) -> None:
     """Analyse a codebase and output a summary."""
     container = _get_container(config)
     scanner = container.scanner()
     cmd = AnalyseCodebaseCommand(scanner, container.event_bus)
 
-    with console.status("[bold green]Scanning codebase..."):
+    with console.status("[bold green]Scanning codebase..." if format == OutputFormat.rich else ""):
         analysis = cmd.execute(path.resolve())
 
     dto = GetAnalysis().execute(analysis)
+
+    if format == OutputFormat.json:
+        print(json_mod.dumps(dto.model_dump(), indent=2))
+        return
+    if format == OutputFormat.yaml:
+        print(yaml.dump(dto.model_dump(), default_flow_style=False))
+        return
 
     table = Table(title="Codebase Analysis")
     table.add_column("Metric", style="cyan")
@@ -120,13 +137,14 @@ def strategise(
     config: Annotated[Optional[str], typer.Option("--config", "-c", help="Config file path")] = None,
     layers: Annotated[Optional[str], typer.Option("--layers", "-l", help="Comma-separated layers")] = None,
     prd: Annotated[Optional[str], typer.Option("--prd", help="Path to PRD file")] = None,
+    format: Annotated[OutputFormat, typer.Option("--format", "-f", help="Output format")] = OutputFormat.rich,
 ) -> None:
     """Generate a test strategy for a codebase."""
     container = _get_container(config)
     scanner = container.scanner()
     resolved_layers = _resolve_layers(_parse_layers(layers), container.config)
 
-    with console.status("[bold green]Scanning codebase..."):
+    with console.status("[bold green]Scanning codebase..." if format == OutputFormat.rich else ""):
         analysis = AnalyseCodebaseCommand(scanner).execute(path.resolve())
 
     prd_content = _resolve_prd(prd, container.config)
@@ -138,6 +156,13 @@ def strategise(
         strategy = cmd.execute(analysis, resolved_layers, prd_content)
 
     dto = GetStrategy().execute(strategy)
+
+    if format == OutputFormat.json:
+        print(json_mod.dumps(dto.model_dump(), indent=2))
+        return
+    if format == OutputFormat.yaml:
+        print(yaml.dump(dto.model_dump(), default_flow_style=False))
+        return
 
     console.print(Panel(f"[bold]Test Strategy[/bold] — {dto.total_test_cases} test cases across {len(dto.layers_covered)} layers"))
 
@@ -160,8 +185,11 @@ def generate(
     layers: Annotated[Optional[str], typer.Option("--layers", "-l", help="Comma-separated layers")] = None,
     prd: Annotated[Optional[str], typer.Option("--prd", help="Path to PRD file")] = None,
     output_dir: Annotated[Optional[str], typer.Option("--output-dir", "-o", help="Output directory")] = None,
+    no_dedup: Annotated[bool, typer.Option("--no-dedup", help="Skip deduplication against existing tests")] = False,
 ) -> None:
     """Generate test files from a strategy."""
+    from testforge.infrastructure.deduplicator import TestDeduplicator
+
     container = _get_container(config)
     scanner = container.scanner()
     resolved_layers = _resolve_layers(_parse_layers(layers), container.config)
@@ -174,6 +202,16 @@ def generate(
 
     with console.status("[bold green]Generating strategy..."):
         strategy = GenerateStrategyCommand(ai).execute(analysis, resolved_layers, prd_content)
+
+    if not no_dedup:
+        test_path = path.resolve() / "tests"
+        if test_path.exists():
+            dedup = TestDeduplicator(test_path)
+            original_count = strategy.total_test_cases
+            strategy = dedup.deduplicate(strategy)
+            skipped = original_count - strategy.total_test_cases
+            if skipped:
+                console.print(f"[dim]Skipped {skipped} already-covered test cases[/dim]")
 
     out = Path(output_dir or container.config.get("output_dir", ".testforge_output"))
     generators = container.generators(source_root=path.resolve())
@@ -235,6 +273,170 @@ def run(
             console.print(f"[green]✓[/green] {suite.layer.value}: {suite.size} tests → {out}")
     else:
         console.print("[yellow]Dry run — no files generated[/yellow]")
+
+
+@app.command()
+def validate(
+    path: Annotated[Path, typer.Argument(help="Path to generated test directory")] = Path(".testforge_output"),
+    collect: Annotated[bool, typer.Option("--collect", help="Also run pytest --collect-only")] = False,
+) -> None:
+    """Validate generated test files for syntax and collection errors."""
+    from testforge.infrastructure.validators import TestValidator
+
+    validator = TestValidator()
+
+    with console.status("[bold green]Validating tests..."):
+        if collect:
+            report = validator.validate_collection(path)
+        else:
+            report = validator.validate_syntax(path)
+
+    table = Table(title="Validation Report")
+    table.add_column("File", style="cyan")
+    table.add_column("Status")
+    table.add_column("Errors", style="red")
+
+    for r in report.results:
+        status = "[green]PASS[/green]" if r.valid else "[red]FAIL[/red]"
+        errors = "; ".join(r.errors) if r.errors else ""
+        table.add_row(r.file_path, status, errors)
+
+    console.print(table)
+    console.print(
+        f"\n{report.passed}/{report.total} passed "
+        f"({report.success_rate:.0%} success rate)"
+    )
+
+
+@app.command()
+def gaps(
+    path: Annotated[Path, typer.Argument(help="Path to codebase root")] = Path("."),
+    test_dir: Annotated[Optional[str], typer.Option("--test-dir", "-t", help="Existing test directory")] = None,
+    config: Annotated[Optional[str], typer.Option("--config", "-c", help="Config file path")] = None,
+    format: Annotated[OutputFormat, typer.Option("--format", "-f", help="Output format")] = OutputFormat.rich,
+) -> None:
+    """Analyse coverage gaps — find untested functions."""
+    from testforge.infrastructure.gap_analyser import GapAnalyser
+
+    container = _get_container(config)
+    scanner = container.scanner()
+
+    with console.status("[bold green]Scanning codebase..." if format == OutputFormat.rich else ""):
+        analysis = scanner.scan(path.resolve())
+
+    test_path = Path(test_dir) if test_dir else path.resolve() / "tests"
+    analyser = GapAnalyser()
+
+    with console.status("[bold green]Analysing coverage gaps..." if format == OutputFormat.rich else ""):
+        report = analyser.analyse(analysis, test_path)
+
+    if format in (OutputFormat.json, OutputFormat.yaml):
+        data = {
+            "coverage_percent": report.coverage_percent,
+            "tested": report.tested,
+            "total": report.total,
+            "untested": report.untested,
+            "modules": [
+                {"file_path": m.file_path, "tested": m.tested, "untested": m.untested}
+                for m in report.modules if m.untested
+            ],
+        }
+        if format == OutputFormat.json:
+            print(json_mod.dumps(data, indent=2))
+        else:
+            print(yaml.dump(data, default_flow_style=False))
+        return
+
+    table = Table(title=f"Coverage Gap Analysis — {report.coverage_percent:.0f}% covered")
+    table.add_column("Module", style="cyan")
+    table.add_column("Untested Functions", style="red")
+    table.add_column("Tested", style="green", justify="right")
+    table.add_column("Total", justify="right")
+
+    for module in report.modules:
+        if module.untested:
+            table.add_row(
+                module.file_path,
+                ", ".join(module.untested[:5]) + (f" +{len(module.untested)-5}" if len(module.untested) > 5 else ""),
+                str(module.tested_count),
+                str(module.total_count),
+            )
+
+    console.print(table)
+    console.print(f"\nTotal: {report.tested}/{report.total} functions tested ({report.coverage_percent:.0f}%)")
+    if report.untested:
+        console.print(f"[yellow]{len(report.untested)} functions need tests[/yellow]")
+
+
+@app.command()
+def watch(
+    path: Annotated[Path, typer.Argument(help="Path to codebase root")] = Path("."),
+    config: Annotated[Optional[str], typer.Option("--config", "-c", help="Config file path")] = None,
+    layers: Annotated[Optional[str], typer.Option("--layers", "-l", help="Comma-separated layers")] = None,
+    output_dir: Annotated[Optional[str], typer.Option("--output-dir", "-o", help="Output directory")] = None,
+    interval: Annotated[int, typer.Option("--interval", help="Polling interval in seconds")] = 2,
+) -> None:
+    """Watch for file changes and regenerate tests automatically."""
+    import time
+
+    container = _get_container(config)
+    resolved_layers = _resolve_layers(_parse_layers(layers), container.config)
+    out = Path(output_dir or container.config.get("output_dir", ".testforge_output"))
+
+    console.print(f"[bold]Watching[/bold] {path.resolve()} for changes (Ctrl+C to stop)")
+    console.print(f"Layers: {', '.join(l.value for l in resolved_layers)}")
+    console.print(f"Output: {out}\n")
+
+    last_mtimes: dict[str, float] = {}
+
+    def _get_mtimes() -> dict[str, float]:
+        mtimes: dict[str, float] = {}
+        for ext in ("*.py", "*.ts", "*.tsx", "*.js", "*.jsx"):
+            for f in path.resolve().rglob(ext):
+                if any(p in str(f) for p in ("__pycache__", "node_modules", ".venv", ".testforge_output")):
+                    continue
+                mtimes[str(f)] = f.stat().st_mtime
+        return mtimes
+
+    last_mtimes = _get_mtimes()
+
+    try:
+        while True:
+            time.sleep(interval)
+            current_mtimes = _get_mtimes()
+
+            changed = {
+                f for f in current_mtimes
+                if f not in last_mtimes or current_mtimes[f] != last_mtimes[f]
+            }
+            new_files = set(current_mtimes) - set(last_mtimes)
+            deleted = set(last_mtimes) - set(current_mtimes)
+
+            if changed or new_files or deleted:
+                console.print(f"[yellow]Changes detected[/yellow]: {len(changed)} modified, {len(new_files)} new, {len(deleted)} deleted")
+
+                cmd = RunPipelineCommand(
+                    scanner=container.scanner(),
+                    ai_strategy=container.ai_strategy(),
+                    generators=container.generators(source_root=path.resolve()),
+                    event_bus=container.event_bus,
+                )
+
+                try:
+                    result = cmd.execute(
+                        root_path=path.resolve(),
+                        output_dir=out,
+                        layers=resolved_layers,
+                    )
+                    strategy = result["strategy"]
+                    console.print(f"[green]Regenerated[/green] {strategy.total_test_cases} test cases")
+                except Exception as e:
+                    console.print(f"[red]Error[/red]: {e}")
+
+                last_mtimes = current_mtimes
+
+    except KeyboardInterrupt:
+        console.print("\n[bold]Watch stopped[/bold]")
 
 
 if __name__ == "__main__":
