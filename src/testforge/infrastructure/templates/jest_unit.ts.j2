@@ -1,0 +1,14 @@
+/**
+ * Auto-generated unit tests for {{ module_path }}
+ */
+
+{% for tc in test_cases %}
+describe('{{ tc.target_function }}', () => {
+  test('{{ tc.description }}', () => {
+    // TODO: implement test for {{ tc.target_function }}
+    // Priority: {{ tc.priority }}
+    throw new Error('Test not yet implemented');
+  });
+});
+
+{% endfor %}

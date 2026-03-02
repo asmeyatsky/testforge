@@ -1,0 +1,26 @@
+project:
+  name: my-project
+  languages: [python]
+  test_framework: pytest
+
+layers:
+  unit:
+    enabled: true
+    output_dir: tests/unit
+  integration:
+    enabled: true
+    output_dir: tests/integration
+  uat:
+    enabled: true
+    output_dir: tests/uat
+  soak:
+    enabled: false
+  performance:
+    enabled: false
+
+ai:
+  provider: claude
+  model: claude-sonnet-4-20250514
+
+prd_path: null
+output_dir: .testforge_output

@@ -1,0 +1,19 @@
+{# k6 performance test template — stub for Phase 4 #}
+// Auto-generated performance test — Phase 4
+// Target: {{ module_path }}
+
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+
+export const options = {
+  vus: 50,
+  duration: '5m',
+  thresholds: {
+    http_req_duration: ['p(95)<500'],
+  },
+};
+
+export default function () {
+  // TODO: implement performance test
+  sleep(1);
+}

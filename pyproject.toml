@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "testforge"
+version = "0.1.0"
+description = "AI-native testing framework that analyses codebases and generates multi-layered test strategies"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+    "typer>=0.9",
+    "rich>=13.0",
+    "anthropic>=0.39",
+    "jinja2>=3.1",
+    "pyyaml>=6.0",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.0",
+]
+
+[project.scripts]
+testforge = "testforge.presentation.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/testforge"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

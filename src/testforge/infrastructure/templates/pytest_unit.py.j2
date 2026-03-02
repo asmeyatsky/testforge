@@ -1,0 +1,20 @@
+"""Auto-generated unit tests for {{ module_path }}."""
+
+import pytest
+{% if module_name %}
+# Target module: {{ module_path }}
+{% endif %}
+
+
+{% for tc in test_cases %}
+def {{ tc.name }}():
+    """{{ tc.description }}"""
+    # TODO: implement test for {{ tc.target_function }}
+    # Priority: {{ tc.priority }}
+    {% if tc.tags %}
+    # Tags: {{ tc.tags | join(', ') }}
+    {% endif %}
+    raise NotImplementedError("Test not yet implemented — generate with AI or implement manually")
+
+
+{% endfor %}
