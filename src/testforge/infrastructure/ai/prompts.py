@@ -70,15 +70,66 @@ TEST_CASE_GENERATION_PROMPT = """\
 You are a senior Python developer. Generate a complete pytest test file for the following \
 test cases targeting module: {target_module}
 
+Source code of the module under test:
+```python
+{source_code}
+```
+
 Test cases to generate:
 {test_cases}
+
+{imports_hint}
 
 Requirements:
 - Use pytest conventions (test_ prefix, fixtures, parametrize where appropriate)
 - Include docstrings explaining each test
-- Mock external dependencies
+- Mock external dependencies using unittest.mock.patch
 - Include both positive and negative test cases
 - Use descriptive assertion messages
+- Import the module under test correctly based on the source code
+- Generate real, runnable assertions — not NotImplementedError stubs
 
 Return ONLY the Python code, no markdown fencing.
+"""
+
+INTEGRATION_TEST_PROMPT = """\
+You are a senior Python developer. Generate integration tests for the following API endpoints \
+using a test client.
+
+Framework detected: {framework}
+Endpoints:
+{endpoints}
+
+Source code:
+```python
+{source_code}
+```
+
+Requirements:
+- Use the {framework} test client
+- Test successful responses (2xx)
+- Test error cases (4xx, 5xx)
+- Validate response structure
+- Use fixtures for test setup
+
+Return ONLY the Python code, no markdown fencing.
+"""
+
+UAT_GENERATION_PROMPT = """\
+You are a senior QA engineer. Generate a UAT (User Acceptance Test) pack in markdown format \
+for the following application.
+
+Application endpoints:
+{endpoints}
+
+{prd_section}
+
+For each user-facing feature, generate:
+1. Scenario name
+2. Preconditions
+3. Step-by-step test instructions
+4. Expected results
+5. Pass/Fail criteria
+
+Format as a structured markdown document with tables.
 """

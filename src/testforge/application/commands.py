@@ -61,7 +61,7 @@ class GenerateStrategyCommand:
         if self._ai_strategy:
             strategy = self._ai_strategy.generate_strategy(analysis, layers, prd_content)
         else:
-            strategy = self._strategy_service.build_strategy(analysis, layers)
+            strategy = self._strategy_service.build_strategy(analysis, layers, prd_content)
 
         if self._event_bus:
             self._event_bus.publish(

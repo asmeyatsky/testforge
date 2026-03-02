@@ -55,6 +55,8 @@ class TestCase:
     target_module: str = ""
     priority: int = 1  # 1 = highest
     tags: tuple[str, ...] = ()
+    external_calls: tuple[str, ...] = ()
+    fixtures_needed: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

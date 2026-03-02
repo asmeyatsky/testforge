@@ -1,18 +1,36 @@
 """Auto-generated unit tests for {{ module_path }}."""
 
 import pytest
-{% if module_name %}
-# Target module: {{ module_path }}
+{% set ns = namespace(has_mocks=false) %}
+{% for tc in test_cases %}
+{% if tc.external_calls is defined and tc.external_calls %}
+{% set ns.has_mocks = true %}
 {% endif %}
+{% endfor %}
+{% if ns.has_mocks %}
+from unittest.mock import patch, MagicMock
+{% endif %}
+# Target module: {{ module_path }}
 
 
 {% for tc in test_cases %}
-def {{ tc.name }}():
+{% if tc.external_calls is defined and tc.external_calls %}
+{% for ext in tc.external_calls %}
+@patch("{{ module_path | replace('/', '.') | replace('.py', '') }}.{{ ext }}")
+{% endfor %}
+{% endif %}
+def {{ tc.name }}({% if tc.fixtures_needed is defined and tc.fixtures_needed %}{{ tc.fixtures_needed | join(', ') }}{% if tc.external_calls is defined and tc.external_calls %}, {% endif %}{% endif %}{% if tc.external_calls is defined and tc.external_calls %}{% for ext in tc.external_calls %}mock_{{ ext.split('.')[-1] }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}):
     """{{ tc.description }}"""
     # TODO: implement test for {{ tc.target_function }}
     # Priority: {{ tc.priority }}
-    {% if tc.tags %}
+    {% if tc.tags is defined and tc.tags %}
     # Tags: {{ tc.tags | join(', ') }}
+    {% endif %}
+    {% if tc.external_calls is defined and tc.external_calls %}
+    # Mocks provided for external calls:
+    {% for ext in tc.external_calls %}
+    # - mock_{{ ext.split('.')[-1] }} → {{ ext }}
+    {% endfor %}
     {% endif %}
     raise NotImplementedError("Test not yet implemented — generate with AI or implement manually")
 

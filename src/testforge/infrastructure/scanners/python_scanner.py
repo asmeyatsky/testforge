@@ -16,6 +16,23 @@ from testforge.domain.value_objects import (
 )
 
 
+# Known external/side-effect call patterns that should be mocked in tests
+_EXTERNAL_CALL_PATTERNS = frozenset({
+    "requests", "httpx", "aiohttp", "urllib",
+    "open", "os.remove", "os.makedirs", "shutil",
+    "subprocess",
+    "sqlite3", "psycopg2", "pymongo", "sqlalchemy",
+    "smtplib", "boto3", "redis",
+    "time.sleep",
+    "print",
+})
+
+# Patterns that suggest a pytest fixture is needed
+_FIXTURE_HINTS = {
+    "tmp_path": {"open", "os.path", "Path", "shutil", "os.makedirs", "os.remove"},
+    "monkeypatch": {"os.environ", "os.getenv"},
+}
+
 _ROUTE_DECORATORS = frozenset({
     "route", "get", "post", "put", "delete", "patch",
     "app.route", "app.get", "app.post", "app.put", "app.delete",
@@ -120,6 +137,8 @@ class PythonScanner:
         decorators = [self._decorator_name(d) for d in node.decorator_list]
         return_type = ast.unparse(node.returns) if node.returns else None
         docstring = ast.get_docstring(node)
+        external_calls = self._detect_external_calls(node)
+        fixtures = self._detect_fixtures_needed(node)
 
         return FunctionSignature(
             name=node.name,
@@ -129,7 +148,44 @@ class PythonScanner:
             is_async=isinstance(node, ast.AsyncFunctionDef),
             docstring=docstring,
             line_number=node.lineno,
+            external_calls=tuple(external_calls),
+            fixtures_needed=tuple(fixtures),
         )
+
+    def _detect_external_calls(self, node: ast.AST) -> list[str]:
+        """Walk the function body to find calls to known external libraries."""
+        calls: list[str] = []
+        for child in ast.walk(node):
+            if isinstance(child, ast.Call):
+                call_name = self._call_name(child)
+                if call_name:
+                    for pattern in _EXTERNAL_CALL_PATTERNS:
+                        if call_name == pattern or call_name.startswith(pattern + "."):
+                            calls.append(call_name)
+                            break
+        return sorted(set(calls))
+
+    def _detect_fixtures_needed(self, node: ast.AST) -> list[str]:
+        """Detect which pytest fixtures a test for this function would need."""
+        source = ast.dump(node)
+        fixtures: list[str] = []
+        for fixture_name, patterns in _FIXTURE_HINTS.items():
+            if any(p in source for p in patterns):
+                fixtures.append(fixture_name)
+        return sorted(set(fixtures))
+
+    @staticmethod
+    def _call_name(node: ast.Call) -> str | None:
+        """Extract the full dotted name of a function call."""
+        func = node.func
+        if isinstance(func, ast.Name):
+            return func.id
+        if isinstance(func, ast.Attribute):
+            try:
+                return ast.unparse(func)
+            except Exception:
+                return None
+        return None
 
     def _parse_class(self, node: ast.ClassDef, file_path: str) -> ClassInfo:
         methods: list[FunctionSignature] = []

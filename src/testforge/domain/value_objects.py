@@ -43,6 +43,8 @@ class FunctionSignature:
     is_async: bool = False
     docstring: str | None = None
     line_number: int = 0
+    external_calls: tuple[str, ...] = ()  # e.g. ("requests.get", "db.query")
+    fixtures_needed: tuple[str, ...] = ()  # e.g. ("tmp_path", "monkeypatch")
 
 
 @dataclass(frozen=True)

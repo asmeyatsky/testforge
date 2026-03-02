@@ -7,7 +7,12 @@ import logging
 
 from testforge.domain.entities import CodebaseAnalysis, TestCase, TestStrategy, TestSuite
 from testforge.domain.value_objects import TestLayer
-from testforge.infrastructure.ai.prompts import STRATEGY_GENERATION_PROMPT
+from testforge.infrastructure.ai.prompts import (
+    INTEGRATION_TEST_PROMPT,
+    STRATEGY_GENERATION_PROMPT,
+    TEST_CASE_GENERATION_PROMPT,
+    UAT_GENERATION_PROMPT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -97,3 +102,98 @@ class ClaudeAdapter:
             suites.append(TestSuite(layer=layer, test_cases=tuple(cases)))
 
         return TestStrategy(analysis_id=analysis_id, suites=tuple(suites))
+
+    def generate_test_code(
+        self,
+        target_module: str,
+        source_code: str,
+        test_cases: list[TestCase],
+        imports_hint: str = "",
+    ) -> str:
+        """Generate actual test implementation code using AI."""
+        cases_desc = "\n".join(
+            f"- {tc.name}: {tc.description} (target: {tc.target_function}, priority: {tc.priority})"
+            for tc in test_cases
+        )
+        imports_section = f"Import hints:\n{imports_hint}" if imports_hint else ""
+
+        prompt = TEST_CASE_GENERATION_PROMPT.format(
+            target_module=target_module,
+            source_code=source_code,
+            test_cases=cases_desc,
+            imports_hint=imports_section,
+        )
+
+        message = self._client.messages.create(
+            model=self._model,
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        code = message.content[0].text.strip()
+        # Strip markdown fencing if present
+        if code.startswith("```python"):
+            code = code[len("```python"):].strip()
+        if code.startswith("```"):
+            code = code[3:].strip()
+        if code.endswith("```"):
+            code = code[:-3].strip()
+        return code
+
+    def generate_integration_tests(
+        self,
+        framework: str,
+        endpoints: list,
+        source_code: str,
+    ) -> str:
+        """Generate integration test code for API endpoints."""
+        endpoints_desc = "\n".join(
+            f"- {ep.method} {ep.path} → {ep.handler_name} ({ep.file_path})"
+            for ep in endpoints
+        )
+
+        prompt = INTEGRATION_TEST_PROMPT.format(
+            framework=framework,
+            endpoints=endpoints_desc,
+            source_code=source_code,
+        )
+
+        message = self._client.messages.create(
+            model=self._model,
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        code = message.content[0].text.strip()
+        if code.startswith("```python"):
+            code = code[len("```python"):].strip()
+        if code.startswith("```"):
+            code = code[3:].strip()
+        if code.endswith("```"):
+            code = code[:-3].strip()
+        return code
+
+    def generate_uat_pack(
+        self,
+        endpoints: list,
+        prd_content: str | None = None,
+    ) -> str:
+        """Generate UAT test pack in markdown."""
+        endpoints_desc = "\n".join(
+            f"- {ep.method} {ep.path} → {ep.handler_name}"
+            for ep in endpoints
+        )
+        prd_section = f"Product Requirements Document:\n{prd_content}" if prd_content else "No PRD provided."
+
+        prompt = UAT_GENERATION_PROMPT.format(
+            endpoints=endpoints_desc,
+            prd_section=prd_section,
+        )
+
+        message = self._client.messages.create(
+            model=self._model,
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        return message.content[0].text.strip()

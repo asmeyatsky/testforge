@@ -15,6 +15,7 @@ from testforge.infrastructure.generators.soak_generator import SoakGenerator
 from testforge.infrastructure.generators.uat_generator import UATGenerator
 from testforge.infrastructure.generators.unit_generator import UnitTestGenerator
 from testforge.infrastructure.scanners.python_scanner import PythonScanner
+from testforge.infrastructure.scanners.typescript_scanner import TypeScriptScanner
 
 
 class SimpleEventBus:
@@ -52,7 +53,10 @@ class Container:
     def filesystem(self) -> FileSystemAdapter:
         return self._fs
 
-    def scanner(self) -> PythonScanner:
+    def scanner(self, language: str | None = None) -> PythonScanner | TypeScriptScanner:
+        lang = language or self._config.get("project", {}).get("languages", ["python"])[0]
+        if lang in ("typescript", "javascript"):
+            return TypeScriptScanner()
         return PythonScanner()
 
     def ai_strategy(self):
@@ -65,11 +69,12 @@ class Container:
         model = self._config.get("ai", {}).get("model", "claude-sonnet-4-20250514")
         return ClaudeAdapter(api_key=api_key, model=model)
 
-    def generators(self) -> dict[TestLayer, object]:
+    def generators(self, source_root: Path | None = None) -> dict[TestLayer, object]:
+        ai = self.ai_strategy()
         return {
-            TestLayer.UNIT: UnitTestGenerator(),
-            TestLayer.INTEGRATION: IntegrationTestGenerator(),
-            TestLayer.UAT: UATGenerator(),
+            TestLayer.UNIT: UnitTestGenerator(ai_adapter=ai, source_root=source_root),
+            TestLayer.INTEGRATION: IntegrationTestGenerator(ai_adapter=ai, source_root=source_root),
+            TestLayer.UAT: UATGenerator(ai_adapter=ai),
             TestLayer.SOAK: SoakGenerator(),
             TestLayer.PERFORMANCE: PerformanceGenerator(),
         }

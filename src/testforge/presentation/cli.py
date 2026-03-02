@@ -34,6 +34,36 @@ def _parse_layers(layers: str | None) -> list[TestLayer] | None:
     return [TestLayer(l.strip()) for l in layers.split(",")]
 
 
+def _enabled_layers(cfg: dict) -> list[TestLayer]:
+    """Return layers that are enabled in config."""
+    layers_cfg = cfg.get("layers", {})
+    enabled = []
+    for layer in TestLayer:
+        layer_cfg = layers_cfg.get(layer.value, {})
+        if layer_cfg.get("enabled", False):
+            enabled.append(layer)
+    return enabled
+
+
+def _resolve_layers(explicit: list[TestLayer] | None, cfg: dict) -> list[TestLayer]:
+    """Use explicit layers if provided, otherwise fall back to config-enabled layers."""
+    if explicit:
+        return explicit
+    enabled = _enabled_layers(cfg)
+    return enabled if enabled else [TestLayer.UNIT]
+
+
+def _resolve_prd(explicit_prd: str | None, cfg: dict) -> str | None:
+    """Load PRD content from explicit flag or config prd_path."""
+    prd_path = explicit_prd or cfg.get("prd_path")
+    if not prd_path:
+        return None
+    p = Path(prd_path)
+    if p.exists():
+        return p.read_text(encoding="utf-8")
+    return None
+
+
 def _get_container(config: str | None) -> Container:
     from testforge.infrastructure.config import ConfigAdapter
 
@@ -94,20 +124,18 @@ def strategise(
     """Generate a test strategy for a codebase."""
     container = _get_container(config)
     scanner = container.scanner()
-    parsed_layers = _parse_layers(layers)
+    resolved_layers = _resolve_layers(_parse_layers(layers), container.config)
 
     with console.status("[bold green]Scanning codebase..."):
         analysis = AnalyseCodebaseCommand(scanner).execute(path.resolve())
 
-    prd_content = None
-    if prd:
-        prd_content = Path(prd).read_text(encoding="utf-8")
+    prd_content = _resolve_prd(prd, container.config)
 
     ai = container.ai_strategy()
     cmd = GenerateStrategyCommand(ai, container.event_bus)
 
     with console.status("[bold green]Generating strategy..."):
-        strategy = cmd.execute(analysis, parsed_layers, prd_content)
+        strategy = cmd.execute(analysis, resolved_layers, prd_content)
 
     dto = GetStrategy().execute(strategy)
 
@@ -136,23 +164,23 @@ def generate(
     """Generate test files from a strategy."""
     container = _get_container(config)
     scanner = container.scanner()
-    parsed_layers = _parse_layers(layers)
+    resolved_layers = _resolve_layers(_parse_layers(layers), container.config)
 
     with console.status("[bold green]Scanning codebase..."):
         analysis = AnalyseCodebaseCommand(scanner).execute(path.resolve())
 
-    prd_content = Path(prd).read_text(encoding="utf-8") if prd else None
+    prd_content = _resolve_prd(prd, container.config)
     ai = container.ai_strategy()
 
     with console.status("[bold green]Generating strategy..."):
-        strategy = GenerateStrategyCommand(ai).execute(analysis, parsed_layers, prd_content)
+        strategy = GenerateStrategyCommand(ai).execute(analysis, resolved_layers, prd_content)
 
     out = Path(output_dir or container.config.get("output_dir", ".testforge_output"))
-    generators = container.generators()
+    generators = container.generators(source_root=path.resolve())
     cmd = GenerateTestsCommand(generators, container.event_bus)
 
     with console.status("[bold green]Generating tests..."):
-        suites = cmd.execute(strategy, out, parsed_layers)
+        suites = cmd.execute(strategy, out, resolved_layers)
 
     for suite in suites:
         console.print(f"[green]✓[/green] Generated {suite.size} {suite.layer.value} test cases → {out}")
@@ -169,15 +197,15 @@ def run(
 ) -> None:
     """Run the full pipeline: analyse → strategise → generate."""
     container = _get_container(config)
-    parsed_layers = _parse_layers(layers)
+    resolved_layers = _resolve_layers(_parse_layers(layers), container.config)
 
-    prd_content = Path(prd).read_text(encoding="utf-8") if prd else None
+    prd_content = _resolve_prd(prd, container.config)
     out = Path(output_dir or container.config.get("output_dir", ".testforge_output"))
 
     cmd = RunPipelineCommand(
         scanner=container.scanner(),
         ai_strategy=container.ai_strategy(),
-        generators=container.generators(),
+        generators=container.generators(source_root=path.resolve()),
         event_bus=container.event_bus,
     )
 
@@ -185,7 +213,7 @@ def run(
         result = cmd.execute(
             root_path=path.resolve(),
             output_dir=out,
-            layers=parsed_layers,
+            layers=resolved_layers,
             prd_content=prd_content,
             dry_run=dry_run,
         )

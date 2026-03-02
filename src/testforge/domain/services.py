@@ -13,13 +13,19 @@ class TestStrategyService:
         self,
         analysis: CodebaseAnalysis,
         layers: list[TestLayer] | None = None,
+        prd_content: str | None = None,
     ) -> TestStrategy:
         if layers is None:
             layers = [TestLayer.UNIT]
 
+        # Extract keywords from PRD to boost priority of matching functions
+        prd_keywords = self._extract_prd_keywords(prd_content) if prd_content else set()
+
         suites: list[TestSuite] = []
         for layer in layers:
             cases = self._generate_cases_for_layer(analysis, layer)
+            if prd_keywords:
+                cases = self._boost_prd_matches(cases, prd_keywords)
             if cases:
                 suites.append(TestSuite(layer=layer, test_cases=tuple(cases)))
 
@@ -53,6 +59,8 @@ class TestStrategyService:
                         target_function=func.name,
                         target_module=str(module.file_path),
                         priority=self._function_priority(func.name, func.decorators),
+                        external_calls=func.external_calls,
+                        fixtures_needed=func.fixtures_needed,
                     )
                 )
             for cls in module.classes:
@@ -69,6 +77,8 @@ class TestStrategyService:
                             priority=self._function_priority(
                                 method.name, method.decorators
                             ),
+                            external_calls=method.external_calls,
+                            fixtures_needed=method.fixtures_needed,
                         )
                     )
         return cases
@@ -113,6 +123,37 @@ class TestStrategyService:
         if name.startswith("_"):
             return 3
         return 2
+
+    @staticmethod
+    def _extract_prd_keywords(prd_content: str) -> set[str]:
+        """Extract meaningful keywords from PRD for matching against function names."""
+        import re
+        # Lowercase words, filter short/common ones
+        words = re.findall(r"[a-zA-Z_]\w{2,}", prd_content.lower())
+        stopwords = {
+            "the", "and", "for", "are", "but", "not", "you", "all", "can",
+            "had", "her", "was", "one", "our", "out", "has", "have", "that",
+            "this", "with", "from", "they", "will", "would", "should", "must",
+            "shall", "each", "which", "their", "when", "what", "been", "make",
+        }
+        return {w for w in words if w not in stopwords}
+
+    @staticmethod
+    def _boost_prd_matches(cases: list[TestCase], prd_keywords: set[str]) -> list[TestCase]:
+        """Boost priority of test cases whose target functions match PRD keywords."""
+        import re
+        boosted: list[TestCase] = []
+        for tc in cases:
+            # Split function name into words (e.g., "get_user_profile" -> {"get", "user", "profile"})
+            func_words = set(re.findall(r"[a-z]+", tc.target_function.lower()))
+            overlap = func_words & prd_keywords
+            if overlap and tc.priority > 1:
+                # Boost priority by 1 level
+                from dataclasses import replace
+                boosted.append(replace(tc, priority=max(1, tc.priority - 1)))
+            else:
+                boosted.append(tc)
+        return boosted
 
 
 class TestPrioritizationService:
