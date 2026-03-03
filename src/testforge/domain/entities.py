@@ -24,6 +24,8 @@ def _new_id() -> str:
 
 @dataclass(frozen=True)
 class CodebaseAnalysis:
+    """Immutable snapshot of a scanned codebase: modules, endpoints, and languages."""
+
     id: str = field(default_factory=_new_id)
     root_path: str = ""
     modules: tuple[ModuleInfo, ...] = ()
@@ -47,6 +49,8 @@ class CodebaseAnalysis:
 
 @dataclass(frozen=True)
 class TestCase:
+    """A single test case specification: what to test, where, and at what priority."""
+
     __test__ = False
 
     id: str = field(default_factory=_new_id)
@@ -63,6 +67,8 @@ class TestCase:
 
 @dataclass(frozen=True)
 class TestSuite:
+    """An ordered collection of test cases belonging to a single test layer."""
+
     __test__ = False
 
     id: str = field(default_factory=_new_id)
@@ -77,6 +83,8 @@ class TestSuite:
 
 @dataclass(frozen=True)
 class TestStrategy:
+    """A complete test plan: one or more suites spanning the requested test layers."""
+
     __test__ = False
 
     id: str = field(default_factory=_new_id)

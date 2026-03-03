@@ -17,6 +17,19 @@ from testforge.infrastructure.ai.prompts import (
 logger = logging.getLogger(__name__)
 
 
+def strip_markdown_fences(text: str, language: str = "python") -> str:
+    """Remove markdown code fences from AI-generated code responses."""
+    code = text.strip()
+    lang_fence = f"```{language}"
+    if code.startswith(lang_fence):
+        code = code[len(lang_fence):].strip()
+    if code.startswith("```"):
+        code = code[3:].strip()
+    if code.endswith("```"):
+        code = code[:-3].strip()
+    return code
+
+
 class ClaudeAdapter:
     """Implements AIStrategyPort using the Anthropic SDK."""
 
@@ -130,15 +143,7 @@ class ClaudeAdapter:
             messages=[{"role": "user", "content": prompt}],
         )
 
-        code = message.content[0].text.strip()
-        # Strip markdown fencing if present
-        if code.startswith("```python"):
-            code = code[len("```python"):].strip()
-        if code.startswith("```"):
-            code = code[3:].strip()
-        if code.endswith("```"):
-            code = code[:-3].strip()
-        return code
+        return strip_markdown_fences(message.content[0].text)
 
     def generate_integration_tests(
         self,
@@ -164,14 +169,7 @@ class ClaudeAdapter:
             messages=[{"role": "user", "content": prompt}],
         )
 
-        code = message.content[0].text.strip()
-        if code.startswith("```python"):
-            code = code[len("```python"):].strip()
-        if code.startswith("```"):
-            code = code[3:].strip()
-        if code.endswith("```"):
-            code = code[:-3].strip()
-        return code
+        return strip_markdown_fences(message.content[0].text)
 
     def generate_uat_pack(
         self,
