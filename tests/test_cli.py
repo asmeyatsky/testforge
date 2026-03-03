@@ -110,3 +110,34 @@ class TestCLI:
         result = runner.invoke(app, ["gaps", str(src), "--format", "json"])
         assert result.exit_code == 0
         assert '"coverage_percent"' in result.output
+
+    def test_help_shows_new_commands(self):
+        result = runner.invoke(app, ["--help"])
+        assert result.exit_code == 0
+        assert "execute" in result.output
+        assert "incremental" in result.output
+        assert "repair" in result.output
+        assert "mutate" in result.output
+        assert "interactive" in result.output
+        assert "plugins" in result.output
+
+    def test_execute(self, tmp_path: Path):
+        (tmp_path / "test_ok.py").write_text("def test_pass(): assert True\n")
+        result = runner.invoke(app, ["execute", str(tmp_path)])
+        assert result.exit_code == 0
+        assert "Execution Report" in result.output
+
+    def test_execute_json(self, tmp_path: Path):
+        (tmp_path / "test_ok.py").write_text("def test_pass(): assert True\n")
+        result = runner.invoke(app, ["execute", str(tmp_path), "--format", "json"])
+        assert result.exit_code == 0
+        assert '"total"' in result.output
+
+    def test_plugins_command(self):
+        result = runner.invoke(app, ["plugins"])
+        assert result.exit_code == 0
+
+    def test_incremental_no_git(self, tmp_path: Path):
+        result = runner.invoke(app, ["incremental", str(tmp_path)])
+        assert result.exit_code == 0
+        assert "No source file changes" in result.output

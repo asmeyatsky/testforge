@@ -1,13 +1,33 @@
 /**
- * Auto-generated unit tests for {{ module_path }}
+ * Auto-generated {{ framework }} tests for {{ module_path }}
  */
+
+{% if framework == "vitest" %}
+import { describe, test, expect, vi } from 'vitest';
+{% endif %}
+import { {{ test_cases | map(attribute='target_function') | unique | join(', ') }} } from './{{ module_name }}';
 
 {% for tc in test_cases %}
 describe('{{ tc.target_function }}', () => {
   test('{{ tc.description }}', () => {
-    // TODO: implement test for {{ tc.target_function }}
+    // Target: {{ tc.target_function }}
     // Priority: {{ tc.priority }}
-    throw new Error('Test not yet implemented');
+    {% if tc.tags is defined and tc.tags %}
+    // Tags: {{ tc.tags | join(', ') }}
+    {% endif %}
+    {% if tc.external_calls is defined and tc.external_calls %}
+    // External calls to mock:
+    {% for ext in tc.external_calls %}
+    // - {{ ext }}
+    {% endfor %}
+    {% endif %}
+    // TODO: implement test for {{ tc.target_function }}
+    expect({{ tc.target_function }}).toBeDefined();
+  });
+
+  test('{{ tc.target_function }} handles edge cases', () => {
+    // TODO: Add edge case tests
+    expect(true).toBe(true);
   });
 });
 

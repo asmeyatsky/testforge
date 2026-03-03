@@ -369,6 +369,237 @@ def gaps(
 
 
 @app.command()
+def execute(
+    path: Annotated[Path, typer.Argument(help="Path to generated test directory")] = Path(".testforge_output"),
+    layers: Annotated[Optional[str], typer.Option("--layers", "-l", help="Comma-separated layers")] = None,
+    format: Annotated[OutputFormat, typer.Option("--format", "-f", help="Output format")] = OutputFormat.rich,
+) -> None:
+    """Execute generated tests and produce a report."""
+    from testforge.infrastructure.test_runner import TestRunner
+
+    runner = TestRunner()
+
+    with console.status("[bold green]Running tests..."):
+        report = runner.run_pytest_simple(path)
+
+    if format == OutputFormat.json:
+        import json as json_mod2
+        data = {
+            "total": report.total,
+            "passed": report.passed,
+            "failed": report.failed,
+            "errors": report.errors,
+            "skipped": report.skipped,
+            "success_rate": report.success_rate,
+            "failures": [
+                {"name": f.name, "outcome": f.outcome, "message": f.longrepr[:500]}
+                for f in report.failures
+            ],
+        }
+        print(json_mod2.dumps(data, indent=2))
+        return
+
+    table = Table(title="Test Execution Report")
+    table.add_column("Test", style="cyan")
+    table.add_column("Status")
+    table.add_column("Duration", justify="right")
+
+    for r in report.results:
+        status_style = {
+            "passed": "[green]PASS[/green]",
+            "failed": "[red]FAIL[/red]",
+            "error": "[red]ERROR[/red]",
+            "skipped": "[yellow]SKIP[/yellow]",
+        }.get(r.outcome, r.outcome)
+        table.add_row(r.name, status_style, f"{r.duration:.2f}s" if r.duration else "")
+
+    console.print(table)
+    console.print(
+        f"\n[bold]{report.passed}[/bold]/{report.total} passed "
+        f"({report.success_rate:.0%} success rate)"
+    )
+
+    if report.failures:
+        console.print(f"\n[red]{len(report.failures)} failures:[/red]")
+        for f in report.failures[:5]:
+            console.print(f"  [red]- {f.name}[/red]")
+            if f.longrepr:
+                for line in f.longrepr.splitlines()[:3]:
+                    console.print(f"    {line}")
+
+
+@app.command()
+def incremental(
+    path: Annotated[Path, typer.Argument(help="Path to codebase root")] = Path("."),
+    config: Annotated[Optional[str], typer.Option("--config", "-c", help="Config file path")] = None,
+    layers: Annotated[Optional[str], typer.Option("--layers", "-l", help="Comma-separated layers")] = None,
+    output_dir: Annotated[Optional[str], typer.Option("--output-dir", "-o", help="Output directory")] = None,
+    ref: Annotated[str, typer.Option("--ref", help="Git ref to diff against")] = "HEAD",
+) -> None:
+    """Incrementally generate tests only for changed files."""
+    from testforge.infrastructure.diff_detector import DiffDetector
+
+    container = _get_container(config)
+    resolved_layers = _resolve_layers(_parse_layers(layers), container.config)
+    out = Path(output_dir or container.config.get("output_dir", ".testforge_output"))
+
+    detector = DiffDetector(path.resolve())
+
+    with console.status("[bold green]Detecting changes..."):
+        diff = detector.detect_git_changes(ref)
+
+    if not diff.has_changes:
+        console.print("[green]No source file changes detected.[/green]")
+        return
+
+    console.print(
+        f"[yellow]Changes detected:[/yellow] {len(diff.modified)} modified, "
+        f"{len(diff.added)} added, {len(diff.deleted)} deleted"
+    )
+
+    scanner = container.scanner()
+    with console.status("[bold green]Scanning codebase..."):
+        full_analysis = AnalyseCodebaseCommand(scanner).execute(path.resolve())
+
+    # Filter analysis to only changed modules
+    filtered = detector.filter_analysis_to_changed(full_analysis, diff)
+    console.print(f"[dim]Generating tests for {filtered.total_modules} changed modules[/dim]")
+
+    ai = container.ai_strategy()
+    strategy = GenerateStrategyCommand(ai).execute(filtered, resolved_layers)
+
+    generators = container.generators(source_root=path.resolve())
+    cmd = GenerateTestsCommand(generators)
+
+    with console.status("[bold green]Generating tests..."):
+        suites = cmd.execute(strategy, out, resolved_layers)
+
+    for suite in suites:
+        console.print(f"[green]Generated {suite.size} {suite.layer.value} tests -> {out}[/green]")
+
+
+@app.command()
+def repair(
+    path: Annotated[Path, typer.Argument(help="Path to test directory to repair")] = Path(".testforge_output"),
+    source: Annotated[Optional[str], typer.Option("--source", "-s", help="Source code root")] = None,
+    max_attempts: Annotated[int, typer.Option("--max-attempts", help="Max repair attempts per file")] = 3,
+) -> None:
+    """Auto-repair failing tests using LLM."""
+    container = _get_container(None)
+    ai = container.ai_strategy()
+
+    if not ai:
+        console.print("[red]Error: ANTHROPIC_API_KEY required for test repair[/red]")
+        raise typer.Exit(1)
+
+    from testforge.infrastructure.test_repairer import TestRepairer
+
+    source_root = Path(source) if source else None
+    repairer = TestRepairer(ai_adapter=ai, max_attempts=max_attempts, source_root=source_root)
+
+    with console.status("[bold green]Repairing failing tests..."):
+        results = repairer.repair_directory(path)
+
+    if not results:
+        console.print("[green]All tests passing — no repairs needed.[/green]")
+        return
+
+    table = Table(title="Repair Results")
+    table.add_column("File", style="cyan")
+    table.add_column("Status")
+    table.add_column("Attempts", justify="right")
+
+    for r in results:
+        status = "[green]FIXED[/green]" if r.success else "[red]FAILED[/red]"
+        table.add_row(Path(r.test_file).name, status, str(r.attempt))
+
+    console.print(table)
+
+    fixed = sum(1 for r in results if r.success)
+    console.print(f"\n{fixed}/{len(results)} files repaired")
+
+
+@app.command()
+def mutate(
+    source: Annotated[Path, typer.Argument(help="Source directory to mutate")] = Path("."),
+    test_dir: Annotated[Path, typer.Option("--test-dir", "-t", help="Test directory")] = Path("tests"),
+) -> None:
+    """Run mutation testing to measure test quality."""
+    from testforge.infrastructure.mutation_runner import MutationRunner
+
+    runner = MutationRunner()
+
+    if not runner.check_available():
+        console.print("[red]mutmut not installed. Install with: pip install mutmut[/red]")
+        raise typer.Exit(1)
+
+    with console.status("[bold green]Running mutation testing (this may take a while)..."):
+        report = runner.run(source, test_dir)
+
+    if report.stderr and "not installed" in report.stderr:
+        console.print(f"[red]{report.stderr}[/red]")
+        raise typer.Exit(1)
+
+    console.print(Panel(
+        f"[bold]Mutation Score: {report.mutation_score:.1f}%[/bold]\n"
+        f"Total mutants: {report.total}\n"
+        f"Killed: {report.killed}\n"
+        f"Survived: {report.survived}\n"
+        f"Timeout: {report.timeout}",
+        title="Mutation Testing Report",
+    ))
+
+    if report.survivors:
+        console.print(f"\n[yellow]{len(report.survivors)} surviving mutants (tests didn't catch these):[/yellow]")
+        for s in report.survivors[:10]:
+            info = f"  - {s.source_file}" if s.source_file else f"  - mutant {s.id}"
+            console.print(info)
+
+
+@app.command()
+def interactive(
+    path: Annotated[Path, typer.Argument(help="Path to codebase root")] = Path("."),
+    config: Annotated[Optional[str], typer.Option("--config", "-c", help="Config file path")] = None,
+) -> None:
+    """Launch interactive TUI mode."""
+    from testforge.presentation.tui import InteractiveTUI
+
+    container = _get_container(config)
+    tui = InteractiveTUI(container)
+    tui.run(path)
+
+
+@app.command()
+def plugins(
+) -> None:
+    """List discovered plugins."""
+    from testforge.infrastructure.plugin_manager import PluginManager
+
+    pm = PluginManager()
+    registry = pm.discover_all()
+
+    if not registry.plugins:
+        console.print("[dim]No plugins discovered.[/dim]")
+        console.print("\nTo create a plugin, add entry points to your pyproject.toml:")
+        console.print('  [project.entry-points."testforge.scanners"]')
+        console.print('  my_scanner = "my_package.scanner:MyScanner"')
+        return
+
+    table = Table(title=f"TestForge Plugins ({registry.total_loaded} loaded)")
+    table.add_column("Name", style="cyan")
+    table.add_column("Type")
+    table.add_column("Module")
+    table.add_column("Status")
+
+    for p in registry.plugins:
+        status = "[green]Loaded[/green]" if p.loaded else f"[red]Error: {p.error}[/red]"
+        ptype = p.group.split(".")[-1]
+        table.add_row(p.name, ptype, p.module, status)
+
+    console.print(table)
+
+
+@app.command()
 def watch(
     path: Annotated[Path, typer.Argument(help="Path to codebase root")] = Path("."),
     config: Annotated[Optional[str], typer.Option("--config", "-c", help="Config file path")] = None,

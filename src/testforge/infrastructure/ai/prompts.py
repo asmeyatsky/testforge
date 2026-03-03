@@ -115,6 +115,36 @@ Requirements:
 Return ONLY the Python code, no markdown fencing.
 """
 
+TEST_REPAIR_PROMPT = """\
+You are a senior Python developer. The following test file has failures. Fix the test code \
+so all tests pass.
+
+Test file path: {test_file}
+
+Current test code:
+```python
+{test_code}
+```
+
+Source code of the module under test:
+```python
+{source_code}
+```
+
+Error output from pytest:
+```
+{error_output}
+```
+
+Requirements:
+- Fix the failing tests so they pass
+- Do not remove tests — fix them
+- Keep all existing passing tests intact
+- Use proper imports and mocking where needed
+
+Return ONLY the corrected Python code, no markdown fencing.
+"""
+
 UAT_GENERATION_PROMPT = """\
 You are a senior QA engineer. Generate a UAT (User Acceptance Test) pack in markdown format \
 for the following application.

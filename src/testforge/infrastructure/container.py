@@ -13,6 +13,7 @@ from testforge.infrastructure.generators.integration_generator import Integratio
 from testforge.infrastructure.generators.performance_generator import PerformanceGenerator
 from testforge.infrastructure.generators.soak_generator import SoakGenerator
 from testforge.infrastructure.generators.uat_generator import UATGenerator
+from testforge.infrastructure.generators.jest_generator import JestGenerator
 from testforge.infrastructure.generators.unit_generator import UnitTestGenerator
 from testforge.infrastructure.scanners.multi_scanner import MultiScanner
 from testforge.infrastructure.scanners.python_scanner import PythonScanner
@@ -75,10 +76,37 @@ class Container:
 
     def generators(self, source_root: Path | None = None) -> dict[TestLayer, object]:
         ai = self.ai_strategy()
-        return {
+        langs = self._config.get("project", {}).get("languages", ["python"])
+        ts_framework = self._config.get("project", {}).get("test_framework", "jest")
+
+        gens: dict[TestLayer, object] = {
             TestLayer.UNIT: UnitTestGenerator(ai_adapter=ai, source_root=source_root),
             TestLayer.INTEGRATION: IntegrationTestGenerator(ai_adapter=ai, source_root=source_root),
             TestLayer.UAT: UATGenerator(ai_adapter=ai),
             TestLayer.SOAK: SoakGenerator(),
             TestLayer.PERFORMANCE: PerformanceGenerator(),
         }
+
+        # Register Jest generator for TS/JS projects
+        if any(l in ("typescript", "javascript") for l in langs):
+            gens["jest"] = JestGenerator(
+                ai_adapter=ai, source_root=source_root,
+                framework="vitest" if ts_framework == "vitest" else "jest",
+            )
+
+        # Load plugin generators
+        try:
+            from testforge.infrastructure.plugin_manager import PluginManager
+            pm = PluginManager()
+            pm.discover_all()
+            for name, cls in pm.registry.generators.items():
+                try:
+                    instance = cls()
+                    if hasattr(instance, "layer"):
+                        gens[instance.layer] = instance
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        return gens
