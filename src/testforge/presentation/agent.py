@@ -16,6 +16,24 @@ from testforge.infrastructure.container import Container
 
 logger = logging.getLogger(__name__)
 
+MAX_MESSAGES = 40  # ~20 turn-pairs
+
+
+def _trim_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep message history within a token-friendly budget.
+
+    Preserves the first user message for context, inserts a trim marker,
+    and keeps the most recent turn-pairs.
+    """
+    if len(messages) <= MAX_MESSAGES:
+        return messages
+    return (
+        messages[:1]
+        + [{"role": "user", "content": "[Earlier conversation trimmed for context length.]"}]
+        + messages[-MAX_MESSAGES + 2 :]
+    )
+
+
 # ---------------------------------------------------------------------------
 # Tool schemas (Claude tool-use format)
 # ---------------------------------------------------------------------------
@@ -47,7 +65,7 @@ TOOLS: list[dict[str, Any]] = [
             "properties": {
                 "layers": {
                     "type": "string",
-                    "description": "Comma-separated test layers: unit, integration, uat, soak, performance. Defaults to 'unit'.",
+                    "description": "Comma-separated test layers to include. Defaults to 'unit' if not specified. Options: unit, integration, uat, soak, performance.",
                 },
             },
             "required": [],
@@ -256,7 +274,7 @@ def _handle_generate_strategy(session: AgentSession, args: dict) -> str:
     from testforge.application.commands import GenerateStrategyCommand
     from testforge.domain.value_objects import TestLayer
 
-    layers_str = args.get("layers", "unit")
+    layers_str = args.get("layers", "").strip() or "unit"
     layers = [TestLayer(l.strip()) for l in layers_str.split(",")]
 
     ai = session.container.ai_strategy()
@@ -334,8 +352,11 @@ def _handle_execute_tests(session: AgentSession, args: dict) -> str:
 def _handle_find_gaps(session: AgentSession, args: dict) -> str:
     from testforge.infrastructure.gap_analyser import GapAnalyser
 
-    scanner = session.container.scanner()
-    analysis = scanner.scan(session.project_path.resolve())
+    if session.analysis:
+        analysis = session.analysis
+    else:
+        scanner = session.container.scanner()
+        analysis = scanner.scan(session.project_path.resolve())
 
     test_dir = Path(args.get("test_dir", str(session.project_path.resolve() / "tests")))
     analyser = GapAnalyser()
@@ -577,13 +598,25 @@ class AgentChat:
             # Inner tool-use loop
             while True:
                 system_prompt = build_system_prompt(session)
+                trimmed = _trim_messages(messages)
 
-                response = client.messages.create(
+                with client.messages.stream(
                     model=self._model,
                     max_tokens=4096,
                     system=system_prompt,
                     tools=TOOLS,
-                    messages=messages,
+                    messages=trimmed,
+                ) as stream:
+                    self._console.print()
+                    for text in stream.text_stream:
+                        self._console.print(text, end="")
+                    response = stream.get_final_message()
+
+                # Show token usage
+                usage = response.usage
+                self._console.print()
+                self._console.print(
+                    f"[dim]tokens: {usage.input_tokens} in / {usage.output_tokens} out[/dim]"
                 )
 
                 # Process response content blocks
@@ -592,8 +625,6 @@ class AgentChat:
 
                 for block in response.content:
                     if block.type == "text":
-                        self._console.print()
-                        self._console.print(Markdown(block.text))
                         assistant_content.append({"type": "text", "text": block.text})
                     elif block.type == "tool_use":
                         assistant_content.append({

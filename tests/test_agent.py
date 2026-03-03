@@ -18,10 +18,12 @@ from testforge.domain.value_objects import (
 from testforge.infrastructure.container import Container
 from testforge.presentation.agent import (
     CONFIRMATION_REQUIRED,
+    MAX_MESSAGES,
     TOOLS,
     AgentChat,
     AgentSession,
     _HANDLERS,
+    _trim_messages,
     build_system_prompt,
 )
 
@@ -265,3 +267,85 @@ class TestChatCommand:
         container = Container()
         agent = AgentChat(container, model_override="claude-haiku-4-5-20251001")
         assert agent._model == "claude-haiku-4-5-20251001"
+
+
+# ---------------------------------------------------------------------------
+# Message trimming
+# ---------------------------------------------------------------------------
+
+class TestTrimMessages:
+    def test_under_limit_returns_unchanged(self):
+        messages = [{"role": "user", "content": f"msg {i}"} for i in range(10)]
+        result = _trim_messages(messages)
+        assert result == messages
+        assert len(result) == 10
+
+    def test_at_limit_returns_unchanged(self):
+        messages = [{"role": "user", "content": f"msg {i}"} for i in range(MAX_MESSAGES)]
+        result = _trim_messages(messages)
+        assert result == messages
+
+    def test_over_limit_trims_with_marker(self):
+        messages = [{"role": "user", "content": f"msg {i}"} for i in range(60)]
+        result = _trim_messages(messages)
+        assert len(result) == MAX_MESSAGES
+        # First message preserved
+        assert result[0] == messages[0]
+        # Trim marker inserted
+        assert "trimmed" in result[1]["content"].lower()
+        # Last messages preserved
+        assert result[-1] == messages[-1]
+
+
+# ---------------------------------------------------------------------------
+# find_gaps caching
+# ---------------------------------------------------------------------------
+
+class TestFindGapsCaching:
+    def test_reuses_cached_analysis(self, tmp_path: Path):
+        (tmp_path / "app.py").write_text("def foo(): pass\n")
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        (tests / "test_app.py").write_text("def test_foo(): pass\n")
+
+        session = _make_session(tmp_path)
+        session.analysis = _make_analysis(str(tmp_path))
+
+        # Mock scanner to verify it's NOT called
+        session.container = MagicMock()
+        result = session.execute_tool("find_gaps", {"test_dir": str(tests)})
+
+        session.container.scanner.assert_not_called()
+        assert "Coverage" in result
+
+    def test_scans_when_no_cached_analysis(self, tmp_path: Path):
+        (tmp_path / "app.py").write_text("def foo(): pass\n")
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        (tests / "test_app.py").write_text("def test_foo(): pass\n")
+
+        session = _make_session(tmp_path)
+        assert session.analysis is None
+
+        result = session.execute_tool("find_gaps", {"test_dir": str(tests)})
+        assert "Coverage" in result
+
+
+# ---------------------------------------------------------------------------
+# generate_strategy layer defaults
+# ---------------------------------------------------------------------------
+
+class TestGenerateStrategyLayers:
+    def test_empty_string_defaults_to_unit(self, tmp_path: Path):
+        session = _make_session(tmp_path)
+        session.analysis = _make_analysis(str(tmp_path))
+        result = session.execute_tool("generate_strategy", {"layers": ""})
+        assert session.strategy is not None
+        assert "Strategy generated" in result
+
+    def test_whitespace_only_defaults_to_unit(self, tmp_path: Path):
+        session = _make_session(tmp_path)
+        session.analysis = _make_analysis(str(tmp_path))
+        result = session.execute_tool("generate_strategy", {"layers": "   "})
+        assert session.strategy is not None
+        assert "Strategy generated" in result
