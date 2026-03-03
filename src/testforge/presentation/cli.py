@@ -582,6 +582,20 @@ def mutate(
 
 
 @app.command()
+def chat(
+    path: Annotated[Path, typer.Argument(help="Path to codebase root")] = Path("."),
+    config: Annotated[Optional[str], typer.Option("--config", "-c", help="Config file path")] = None,
+    model: Annotated[Optional[str], typer.Option("--model", "-m", help="Claude model to use")] = None,
+) -> None:
+    """Start an interactive AI chat session for test generation."""
+    from testforge.presentation.agent import AgentChat
+
+    container = _get_container(config)
+    agent = AgentChat(container, model_override=model)
+    agent.run(path)
+
+
+@app.command()
 def interactive(
     path: Annotated[Path, typer.Argument(help="Path to codebase root")] = Path("."),
     config: Annotated[Optional[str], typer.Option("--config", "-c", help="Config file path")] = None,
