@@ -35,3 +35,9 @@ packages = ["src/testforge"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[tool.coverage.run]
+omit = [
+    "src/testforge/presentation/api/*",
+    "src/testforge/presentation/tui.py",
+]
