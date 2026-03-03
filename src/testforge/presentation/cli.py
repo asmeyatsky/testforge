@@ -582,6 +582,18 @@ def mutate(
 
 
 @app.command()
+def serve(
+    host: Annotated[str, typer.Option("--host", "-h", help="Bind address")] = "0.0.0.0",
+    port: Annotated[int, typer.Option("--port", "-p", help="Port number")] = 8000,
+) -> None:
+    """Start the web dashboard API server."""
+    from testforge.presentation.api import serve as start_server
+
+    console.print(f"[bold green]Starting TestForge API on {host}:{port}[/bold green]")
+    start_server(host=host, port=port)
+
+
+@app.command()
 def chat(
     path: Annotated[Path, typer.Argument(help="Path to codebase root")] = Path("."),
     config: Annotated[Optional[str], typer.Option("--config", "-c", help="Config file path")] = None,
