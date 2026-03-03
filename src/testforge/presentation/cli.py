@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import enum
 import json as json_mod
+import logging
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -12,6 +13,8 @@ import yaml
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+
+logger = logging.getLogger(__name__)
 
 
 class OutputFormat(str, enum.Enum):
@@ -29,10 +32,32 @@ from testforge.application.queries import GetAnalysis, GetStrategy
 from testforge.domain.value_objects import TestLayer
 from testforge.infrastructure.container import Container
 
+def _configure_logging(verbose: bool) -> None:
+    level = logging.DEBUG if verbose else logging.WARNING
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        console.print("testforge 0.1.0")
+        raise typer.Exit()
+
+
+def _main_callback(
+    verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Enable verbose logging")] = False,
+) -> None:
+    _configure_logging(verbose)
+
+
 app = typer.Typer(
     name="testforge",
     help="AI-native testing framework — analyse codebases and generate multi-layered test strategies.",
     no_args_is_help=True,
+    callback=_main_callback,
 )
 console = Console()
 

@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import ast
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -110,6 +113,7 @@ class FixtureInferrer:
 
     def infer_for_module(self, source_path: Path) -> dict[str, InferredFixtures]:
         """Analyse all functions in a module."""
+        logger.info("Inferring fixtures for %s", source_path)
         try:
             source_code = source_path.read_text(encoding="utf-8")
             tree = ast.parse(source_code)

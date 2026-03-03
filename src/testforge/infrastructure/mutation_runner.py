@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -68,6 +71,7 @@ class MutationRunner:
         paths_to_mutate: tuple[str, ...] = (),
     ) -> MutationReport:
         """Run mutmut mutation testing."""
+        logger.info("Running mutation testing on %s with tests in %s", source_dir, test_dir)
         cmd = [
             sys.executable, "-m", "mutmut", "run",
             "--paths-to-mutate", str(source_dir),

@@ -47,6 +47,8 @@ class CodebaseAnalysis:
 
 @dataclass(frozen=True)
 class TestCase:
+    __test__ = False
+
     id: str = field(default_factory=_new_id)
     name: str = ""
     description: str = ""
@@ -61,6 +63,8 @@ class TestCase:
 
 @dataclass(frozen=True)
 class TestSuite:
+    __test__ = False
+
     id: str = field(default_factory=_new_id)
     layer: TestLayer = TestLayer.UNIT
     test_cases: tuple[TestCase, ...] = ()
@@ -73,6 +77,8 @@ class TestSuite:
 
 @dataclass(frozen=True)
 class TestStrategy:
+    __test__ = False
+
     id: str = field(default_factory=_new_id)
     analysis_id: str = ""
     suites: tuple[TestSuite, ...] = ()

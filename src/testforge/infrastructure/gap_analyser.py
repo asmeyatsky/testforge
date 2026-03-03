@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import ast
+import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from testforge.domain.entities import CodebaseAnalysis
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -54,6 +57,7 @@ class GapAnalyser:
     """Analyses gaps between codebase functions and existing tests."""
 
     def analyse(self, analysis: CodebaseAnalysis, test_dir: Path) -> GapReport:
+        logger.info("Analysing coverage gaps against test dir %s", test_dir)
         # Collect all test function names from existing test files
         tested_names = self._collect_test_targets(test_dir)
 

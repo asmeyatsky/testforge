@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import ast
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from testforge.domain.entities import TestCase, TestStrategy, TestSuite
 from testforge.domain.value_objects import TestLayer
 
 
 class TestDeduplicator:
+    __test__ = False
+
     """Removes test cases that already have corresponding tests in existing test files."""
 
     def __init__(self, test_dir: Path) -> None:
@@ -17,6 +22,7 @@ class TestDeduplicator:
 
     def deduplicate(self, strategy: TestStrategy) -> TestStrategy:
         """Return a new strategy with already-covered test cases removed."""
+        logger.info("Deduplicating strategy with %d test cases", strategy.total_test_cases)
         new_suites: list[TestSuite] = []
 
         for suite in strategy.suites:

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import ast
+import logging
 import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -42,6 +45,7 @@ class TestValidator:
 
     def validate_syntax(self, output_dir: Path) -> ValidationReport:
         """Check all .py files in output_dir for Python syntax errors."""
+        logger.info("Validating syntax in %s", output_dir)
         results: list[ValidationResult] = []
 
         for py_file in sorted(output_dir.rglob("*.py")):

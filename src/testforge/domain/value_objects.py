@@ -8,6 +8,8 @@ from pathlib import Path
 
 
 class TestLayer(enum.Enum):
+    __test__ = False
+
     UNIT = "unit"
     INTEGRATION = "integration"
     UAT = "uat"

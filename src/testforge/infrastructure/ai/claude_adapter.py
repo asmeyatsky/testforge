@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class ClaudeAdapter:
     """Implements AIStrategyPort using the Anthropic SDK."""
 
-    def __init__(self, api_key: str | None = None, model: str = "claude-sonnet-4-20250514") -> None:
+    def __init__(self, api_key: str | None = None, model: str = "claude-sonnet-4-6-20250514") -> None:
         import anthropic
 
         self._client = anthropic.Anthropic(api_key=api_key)

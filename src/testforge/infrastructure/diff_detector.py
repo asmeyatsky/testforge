@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -31,6 +34,7 @@ class DiffDetector:
 
     def detect_git_changes(self, ref: str = "HEAD") -> DiffResult:
         """Detect changes vs a git ref (default: uncommitted changes vs HEAD)."""
+        logger.info("Detecting git changes against %s in %s", ref, self._root)
         try:
             # Get staged + unstaged changes
             proc = subprocess.run(

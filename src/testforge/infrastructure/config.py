@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 from testforge.domain.errors import ConfigError
 
@@ -25,7 +28,7 @@ DEFAULT_CONFIG: dict = {
     },
     "ai": {
         "provider": "claude",
-        "model": "claude-sonnet-4-20250514",
+        "model": "claude-sonnet-4-6-20250514",
     },
     "prd_path": None,
     "output_dir": ".testforge_output",
@@ -37,6 +40,7 @@ class ConfigAdapter:
 
     def load(self, path: Path | None = None) -> dict:
         if path and path.is_file():
+            logger.info("Loading config from %s", path)
             return self._read(path)
 
         # Search for config in current directory
@@ -44,8 +48,10 @@ class ConfigAdapter:
         for name in DEFAULT_CONFIG_NAMES:
             candidate = search_dir / name
             if candidate.is_file():
+                logger.info("Loading config from %s", candidate)
                 return self._read(candidate)
 
+        logger.debug("No config file found, using defaults")
         return dict(DEFAULT_CONFIG)
 
     def _read(self, path: Path) -> dict:

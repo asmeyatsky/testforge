@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class TestResult:
+    __test__ = False
+
     name: str
     outcome: str  # "passed", "failed", "error", "skipped"
     duration: float = 0.0
@@ -56,6 +61,8 @@ class ExecutionReport:
 
 
 class TestRunner:
+    __test__ = False
+
     """Runs generated test files and captures structured results."""
 
     def __init__(self, timeout: int = 120) -> None:
@@ -63,6 +70,7 @@ class TestRunner:
 
     def run_pytest(self, test_dir: Path, extra_args: tuple[str, ...] = ()) -> ExecutionReport:
         """Run pytest on a directory and parse results via JSON report."""
+        logger.info("Running pytest on %s", test_dir)
         json_report = test_dir / ".testforge_results.json"
         cmd = [
             sys.executable, "-m", "pytest",

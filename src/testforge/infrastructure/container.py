@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from testforge.domain.events import DomainEvent
 from testforge.domain.value_objects import TestLayer
@@ -71,7 +74,7 @@ class Container:
             return None
         from testforge.infrastructure.ai.claude_adapter import ClaudeAdapter
 
-        model = self._config.get("ai", {}).get("model", "claude-sonnet-4-20250514")
+        model = self._config.get("ai", {}).get("model", "claude-sonnet-4-6-20250514")
         return ClaudeAdapter(api_key=api_key, model=model)
 
     def generators(self, source_root: Path | None = None) -> dict[TestLayer, object]:
@@ -105,8 +108,8 @@ class Container:
                     if hasattr(instance, "layer"):
                         gens[instance.layer] = instance
                 except Exception:
-                    pass
+                    logger.warning("Failed to instantiate plugin generator %s", name, exc_info=True)
         except Exception:
-            pass
+            logger.warning("Failed to load plugin generators", exc_info=True)
 
         return gens

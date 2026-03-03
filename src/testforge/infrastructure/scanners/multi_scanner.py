@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from testforge.domain.entities import CodebaseAnalysis
 from testforge.domain.value_objects import DependencyGraph
@@ -18,6 +21,7 @@ class MultiScanner:
         self._typescript = TypeScriptScanner()
 
     def scan(self, root_path: Path) -> CodebaseAnalysis:
+        logger.info("Multi-language scan of %s", root_path)
         languages_detected = self._detect_languages(root_path)
 
         analyses: list[CodebaseAnalysis] = []

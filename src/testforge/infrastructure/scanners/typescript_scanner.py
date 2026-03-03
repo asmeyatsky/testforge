@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from testforge.domain.entities import CodebaseAnalysis
 from testforge.domain.value_objects import (
@@ -43,6 +46,7 @@ class TypeScriptScanner:
     """Scans TypeScript and JavaScript files using regex patterns."""
 
     def scan(self, root_path: Path) -> CodebaseAnalysis:
+        logger.info("Scanning TypeScript/JavaScript files in %s", root_path)
         ts_files = sorted(
             f for ext in ("*.ts", "*.tsx", "*.js", "*.jsx")
             for f in root_path.rglob(ext)

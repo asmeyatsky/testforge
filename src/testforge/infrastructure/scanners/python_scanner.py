@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import ast
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from testforge.domain.entities import CodebaseAnalysis
 from testforge.domain.value_objects import (
@@ -45,6 +48,7 @@ class PythonScanner:
     """Scans Python files using the ast module."""
 
     def scan(self, root_path: Path) -> CodebaseAnalysis:
+        logger.info("Scanning Python files in %s", root_path)
         py_files = sorted(root_path.rglob("*.py"))
         # Skip hidden dirs, __pycache__, venvs, node_modules
         py_files = [

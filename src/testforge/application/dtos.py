@@ -25,6 +25,8 @@ class AnalysisDTO(BaseModel):
 
 
 class TestCaseDTO(BaseModel):
+    __test__ = False
+
     name: str
     description: str
     layer: str
@@ -34,6 +36,8 @@ class TestCaseDTO(BaseModel):
 
 
 class TestSuiteDTO(BaseModel):
+    __test__ = False
+
     layer: str
     test_cases: list[TestCaseDTO]
     size: int

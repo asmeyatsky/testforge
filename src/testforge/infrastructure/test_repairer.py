@@ -51,6 +51,8 @@ class RepairResult:
 
 
 class TestRepairer:
+    __test__ = False
+
     """Auto-fixes failing tests using LLM feedback loop."""
 
     def __init__(

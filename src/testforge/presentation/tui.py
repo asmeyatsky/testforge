@@ -174,8 +174,18 @@ class InteractiveTUI:
         if not Confirm.ask("\nGenerate all test cases?", default=True):
             self._console.print("[dim]Selective generation: enter test numbers to exclude (comma-separated)[/dim]")
             exclude_input = Prompt.ask("Exclude (or Enter to skip)", default="")
-            # For now, generate all — selective exclusion is a future enhancement
-            self._console.print("[dim]Generating all tests...[/dim]")
+            if exclude_input.strip():
+                exclude_indices: set[int] = set()
+                for part in exclude_input.split(","):
+                    part = part.strip()
+                    if part.isdigit():
+                        exclude_indices.add(int(part))
+                if exclude_indices:
+                    self._strategy = self._filter_strategy(self._strategy, exclude_indices)
+                    self._console.print(
+                        f"[dim]Excluded {len(exclude_indices)} test(s), "
+                        f"{self._strategy.total_test_cases} remaining[/dim]"
+                    )
 
         output_dir = Path(Prompt.ask(
             "Output directory",
@@ -192,6 +202,31 @@ class InteractiveTUI:
             self._console.print(
                 f"[green]Generated {suite.size} {suite.layer.value} tests -> {output_dir}[/green]"
             )
+
+    @staticmethod
+    def _filter_strategy(strategy: TestStrategy, exclude_indices: set[int]) -> TestStrategy:
+        """Remove test cases by their 1-based display index (across all suites)."""
+        new_suites: list[TestSuite] = []
+        global_idx = 1
+        for suite in strategy.suites:
+            kept: list = []
+            for tc in suite.test_cases:
+                if global_idx not in exclude_indices:
+                    kept.append(tc)
+                global_idx += 1
+            if kept:
+                new_suites.append(TestSuite(
+                    id=suite.id,
+                    layer=suite.layer,
+                    test_cases=tuple(kept),
+                    created_at=suite.created_at,
+                ))
+        return TestStrategy(
+            id=strategy.id,
+            analysis_id=strategy.analysis_id,
+            suites=tuple(new_suites),
+            created_at=strategy.created_at,
+        )
 
     def _preview_tests(self) -> None:
         output_dir = Path(Prompt.ask(

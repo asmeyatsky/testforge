@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable
+
+logger = logging.getLogger(__name__)
 
 
 class StepStatus(Enum):
@@ -37,6 +40,7 @@ class DAGOrchestrator:
     def run(self, context: dict[str, Any] | None = None) -> dict[str, Any]:
         ctx = dict(context or {})
         execution_order = self._topological_sort()
+        logger.info("Executing pipeline: %s", " -> ".join(execution_order))
 
         for step_name in execution_order:
             step = self._steps[step_name]
@@ -49,13 +53,16 @@ class DAGOrchestrator:
                 continue
 
             step.status = StepStatus.RUNNING
+            logger.info("Running step: %s", step_name)
             try:
                 step.result = step.execute_fn(ctx)
                 ctx[step.name] = step.result
                 step.status = StepStatus.COMPLETED
+                logger.info("Step completed: %s", step_name)
             except Exception as exc:
                 step.error = exc
                 step.status = StepStatus.FAILED
+                logger.error("Step failed: %s — %s", step_name, exc)
                 raise
 
         return ctx
