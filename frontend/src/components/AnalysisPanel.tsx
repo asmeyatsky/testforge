@@ -1,9 +1,16 @@
 import { useAnalysis } from "../hooks/useAnalysis";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import type { AnalysisDTO } from "../api/types";
 
-export function AnalysisPanel() {
-  const { analysis, loading, error, analyse } = useAnalysis();
+interface Props {
+  seedData?: AnalysisDTO | null;
+}
+
+export function AnalysisPanel({ seedData }: Props) {
+  const { analysis: fetched, loading, error, analyse } = useAnalysis();
   const [path, setPath] = useState(".");
+
+  const analysis = fetched ?? seedData ?? null;
 
   return (
     <div>
@@ -54,7 +61,9 @@ export function AnalysisPanel() {
 
           <div className="bg-white border rounded-lg">
             <div className="px-4 py-3 border-b bg-gray-50">
-              <h3 className="font-semibold text-sm">Modules</h3>
+              <h3 className="font-semibold text-sm">
+                Modules ({analysis.modules.length})
+              </h3>
             </div>
             <div className="overflow-auto max-h-96">
               <table className="w-full text-sm">

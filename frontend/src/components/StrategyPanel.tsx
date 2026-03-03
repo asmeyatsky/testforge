@@ -1,9 +1,16 @@
 import { useStrategy } from "../hooks/useStrategy";
 import { useState } from "react";
+import type { StrategyDTO } from "../api/types";
 
-export function StrategyPanel() {
-  const { strategy, loading, error, generate } = useStrategy();
+interface Props {
+  seedData?: StrategyDTO | null;
+}
+
+export function StrategyPanel({ seedData }: Props) {
+  const { strategy: fetched, loading, error, generate } = useStrategy();
   const [layers, setLayers] = useState("unit");
+
+  const strategy = fetched ?? seedData ?? null;
 
   return (
     <div>

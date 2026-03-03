@@ -2,11 +2,17 @@ import { useState } from "react";
 import { apiPost } from "../api/client";
 import type { ValidationReport } from "../api/types";
 
-export function ValidatePanel() {
-  const [testDir, setTestDir] = useState(".testforge_output");
-  const [report, setReport] = useState<ValidationReport | null>(null);
+interface Props {
+  seedData?: ValidationReport | null;
+}
+
+export function ValidatePanel({ seedData }: Props) {
+  const [testDir, setTestDir] = useState("tests");
+  const [fetched, setFetched] = useState<ValidationReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const report = fetched ?? seedData ?? null;
 
   async function handleValidate() {
     setLoading(true);
@@ -16,7 +22,7 @@ export function ValidatePanel() {
         "/api/validate",
         { test_dir: testDir }
       );
-      setReport(res.validation);
+      setFetched(res.validation);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -71,9 +77,11 @@ export function ValidatePanel() {
 
           <div className="bg-white border rounded-lg">
             <div className="px-4 py-3 border-b bg-gray-50">
-              <h3 className="font-semibold text-sm">Results</h3>
+              <h3 className="font-semibold text-sm">
+                Results ({report.results.length} files)
+              </h3>
             </div>
-            <div className="divide-y">
+            <div className="divide-y max-h-96 overflow-auto">
               {report.results.map((r) => (
                 <div
                   key={r.file_path}

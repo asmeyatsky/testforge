@@ -2,12 +2,18 @@ import { useState } from "react";
 import { apiPost } from "../api/client";
 import type { GapsReport } from "../api/types";
 
-export function GapsPanel() {
+interface Props {
+  seedData?: GapsReport | null;
+}
+
+export function GapsPanel({ seedData }: Props) {
   const [path, setPath] = useState(".");
   const [testDir, setTestDir] = useState("");
-  const [report, setReport] = useState<GapsReport | null>(null);
+  const [fetched, setFetched] = useState<GapsReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const report = fetched ?? seedData ?? null;
 
   async function handleAnalyse() {
     setLoading(true);
@@ -17,7 +23,7 @@ export function GapsPanel() {
         path,
         test_dir: testDir || undefined,
       });
-      setReport(res.gaps);
+      setFetched(res.gaps);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -77,7 +83,9 @@ export function GapsPanel() {
           {report.modules.length > 0 && (
             <div className="bg-white border rounded-lg">
               <div className="px-4 py-3 border-b bg-gray-50">
-                <h3 className="font-semibold text-sm">Modules with Gaps</h3>
+                <h3 className="font-semibold text-sm">
+                  Modules with Gaps ({report.modules.length})
+                </h3>
               </div>
               <div className="overflow-auto max-h-96">
                 <table className="w-full text-sm">

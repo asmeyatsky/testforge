@@ -2,11 +2,17 @@ import { useState } from "react";
 import { apiPost } from "../api/client";
 import type { ExecutionResults } from "../api/types";
 
-export function ExecutePanel() {
-  const [testDir, setTestDir] = useState(".testforge_output");
-  const [results, setResults] = useState<ExecutionResults | null>(null);
+interface Props {
+  seedData?: ExecutionResults | null;
+}
+
+export function ExecutePanel({ seedData }: Props) {
+  const [testDir, setTestDir] = useState("tests");
+  const [fetched, setFetched] = useState<ExecutionResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const results = fetched ?? seedData ?? null;
 
   async function handleExecute() {
     setLoading(true);
@@ -15,7 +21,7 @@ export function ExecutePanel() {
       const res = await apiPost<{ results: ExecutionResults }>("/api/execute", {
         test_dir: testDir,
       });
-      setResults(res.results);
+      setFetched(res.results);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -94,7 +100,9 @@ export function ExecutePanel() {
 
           <div className="bg-white border rounded-lg">
             <div className="px-4 py-3 border-b bg-gray-50">
-              <h3 className="font-semibold text-sm">Test Results</h3>
+              <h3 className="font-semibold text-sm">
+                Test Results ({results.tests.length})
+              </h3>
             </div>
             <div className="overflow-auto max-h-96">
               <table className="w-full text-sm">
