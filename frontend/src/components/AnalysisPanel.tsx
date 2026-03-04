@@ -1,5 +1,6 @@
 import { useAnalysis } from "../hooks/useAnalysis";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { showToast } from "./Toast";
 import type { AnalysisDTO } from "../api/types";
 
 interface Props {
@@ -7,14 +8,24 @@ interface Props {
 }
 
 export function AnalysisPanel({ seedData }: Props) {
-  const { analysis: fetched, loading, error, analyse } = useAnalysis();
+  const { analysis: fetched, loading, error, analyse: rawAnalyse } =
+    useAnalysis();
   const [path, setPath] = useState(".");
 
   const analysis = fetched ?? seedData ?? null;
 
+  async function handleAnalyse() {
+    await rawAnalyse(path);
+    showToast("Analysis done!", "success");
+  }
+
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4">Codebase Analysis</h2>
+      <h2 className="text-2xl font-bold mb-1">Codebase Analysis</h2>
+      <p className="text-sm text-gray-500 mb-4">
+        Scans your project and identifies modules, functions, classes, and API
+        endpoints.
+      </p>
 
       <div className="flex gap-2 mb-6">
         <input
@@ -25,7 +36,7 @@ export function AnalysisPanel({ seedData }: Props) {
         />
         <button
           className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-          onClick={() => analyse(path)}
+          onClick={handleAnalyse}
           disabled={loading}
         >
           {loading ? "Scanning..." : "Analyse"}
@@ -55,7 +66,9 @@ export function AnalysisPanel({ seedData }: Props) {
             </div>
             <div className="bg-white border rounded-lg p-4">
               <p className="text-sm text-gray-500">Languages</p>
-              <p className="text-2xl font-bold">{analysis.languages.join(", ")}</p>
+              <p className="text-2xl font-bold">
+                {analysis.languages.join(", ")}
+              </p>
             </div>
           </div>
 
@@ -77,11 +90,22 @@ export function AnalysisPanel({ seedData }: Props) {
                 </thead>
                 <tbody>
                   {analysis.modules.map((mod) => (
-                    <tr key={mod.file_path} className="border-b hover:bg-gray-50">
-                      <td className="px-4 py-2 font-mono text-xs">{mod.file_path}</td>
-                      <td className="px-4 py-2 text-right">{mod.function_count}</td>
-                      <td className="px-4 py-2 text-right">{mod.class_count}</td>
-                      <td className="px-4 py-2 text-right">{mod.endpoint_count}</td>
+                    <tr
+                      key={mod.file_path}
+                      className="border-b hover:bg-gray-50"
+                    >
+                      <td className="px-4 py-2 font-mono text-xs">
+                        {mod.file_path}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        {mod.function_count}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        {mod.class_count}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        {mod.endpoint_count}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

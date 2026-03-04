@@ -7,7 +7,7 @@ interface Props {
 }
 
 export function ValidatePanel({ seedData }: Props) {
-  const [testDir, setTestDir] = useState("tests");
+  const [testDir, setTestDir] = useState(".testforge_output");
   const [fetched, setFetched] = useState<ValidationReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +32,11 @@ export function ValidatePanel({ seedData }: Props) {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4">Validate Tests</h2>
+      <h2 className="text-2xl font-bold mb-1">Validate Tests</h2>
+      <p className="text-sm text-gray-500 mb-4">
+        Checks generated test files for Python syntax errors without running
+        them. Point this at the same directory as your generated tests.
+      </p>
 
       <div className="flex gap-2 mb-6">
         <input

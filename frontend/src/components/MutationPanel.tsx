@@ -31,7 +31,12 @@ export function MutationPanel() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4">Mutation Testing</h2>
+      <h2 className="text-2xl font-bold mb-1">Mutation Testing</h2>
+      <p className="text-sm text-gray-500 mb-4">
+        Introduces small code mutations and checks if your tests catch them.
+        Requires <code className="font-mono">mutmut</code> — install with{" "}
+        <code className="font-mono">pip install testforge[mutation]</code>.
+      </p>
 
       <div className="flex gap-2 mb-6">
         <input

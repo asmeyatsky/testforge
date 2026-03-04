@@ -31,7 +31,11 @@ export function RepairPanel() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4">Auto-Repair Tests</h2>
+      <h2 className="text-2xl font-bold mb-1">Auto-Repair Tests</h2>
+      <p className="text-sm text-gray-500 mb-4">
+        Uses AI (Anthropic or Gemini) to automatically fix failing tests.
+        Configure your API key in Settings (gear icon, top-right).
+      </p>
 
       <div className="flex gap-2 mb-6">
         <input

@@ -20,7 +20,7 @@ export function ChatPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-1">
         <h2 className="text-2xl font-bold">Chat</h2>
         <button
           className="text-xs text-gray-500 hover:text-gray-700"
@@ -29,12 +29,16 @@ export function ChatPanel() {
           Clear
         </button>
       </div>
+      <p className="text-sm text-gray-500 mb-4">
+        AI-powered assistant that can analyse, generate, execute, repair, and
+        discuss your tests. Requires an Anthropic or Gemini API key in Settings.
+      </p>
 
       <div className="flex-1 overflow-auto bg-white border rounded-lg p-4 mb-4 space-y-4">
         {messages.length === 0 && (
           <p className="text-gray-400 text-sm text-center mt-8">
             Ask TestForge to analyse your code, generate tests, find gaps, and
-            more.
+            more. Configure an API key in Settings (gear icon) first.
           </p>
         )}
         {messages.map((msg, i) => (

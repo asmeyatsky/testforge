@@ -19,9 +19,17 @@ def repair_tests(
 ):
     from testforge.infrastructure.test_repairer import TestRepairer
 
+    import os
+
     ai = session.agent.container.ai_strategy()
     if not ai:
-        return {"error": "ANTHROPIC_API_KEY required for test repair."}
+        # Try Gemini as fallback
+        gemini_key = os.environ.get("GEMINI_API_KEY")
+        if gemini_key:
+            from testforge.infrastructure.ai.gemini_adapter import GeminiAdapter
+            ai = GeminiAdapter(api_key=gemini_key)
+        else:
+            return {"error": "API key required. Set an Anthropic or Gemini key in Settings."}
 
     test_dir = Path(body.test_dir or str(session.agent.output_dir))
     repairer = TestRepairer(ai_adapter=ai, max_attempts=body.max_attempts)

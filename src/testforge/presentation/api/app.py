@@ -17,6 +17,7 @@ from testforge.presentation.api.routes import (
     generation,
     mutation,
     repair,
+    settings,
     strategy,
     validation,
 )
@@ -51,5 +52,6 @@ def create_app() -> FastAPI:
     app.include_router(repair.router)
     app.include_router(mutation.router)
     app.include_router(chat.router)
+    app.include_router(settings.router)
 
     return app

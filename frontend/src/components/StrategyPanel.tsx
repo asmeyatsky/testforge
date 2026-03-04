@@ -39,7 +39,13 @@ export function StrategyPanel({ seedData }: Props) {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4">Test Strategy</h2>
+      <h2 className="text-2xl font-bold mb-1">Test Strategy</h2>
+      <p className="text-sm text-gray-500 mb-4">
+        Plans which tests to create based on your codebase analysis. This step
+        does <strong>not</strong> write test files — it produces a test plan.
+        Use the <strong>Generate</strong> tab to create the actual test files
+        from this plan.
+      </p>
 
       <div className="bg-white border rounded-lg p-4 mb-6">
         <label className="block text-sm font-medium text-gray-700 mb-3">

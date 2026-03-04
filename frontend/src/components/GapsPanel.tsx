@@ -33,7 +33,11 @@ export function GapsPanel({ seedData }: Props) {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4">Coverage Gaps</h2>
+      <h2 className="text-2xl font-bold mb-1">Coverage Gaps</h2>
+      <p className="text-sm text-gray-500 mb-4">
+        Compares source code functions against existing test files to find
+        functions that have no tests. This helps prioritize what to test next.
+      </p>
 
       <div className="flex gap-2 mb-6">
         <input

@@ -25,6 +25,12 @@ dev = [
     "pytest-asyncio>=0.23",
     "pytest-cov>=4.0",
 ]
+gemini = [
+    "google-genai>=1.0",
+]
+mutation = [
+    "mutmut>=2.4",
+]
 
 [project.scripts]
 testforge = "testforge.presentation.cli:app"

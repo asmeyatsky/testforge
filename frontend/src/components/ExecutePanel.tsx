@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { apiPost } from "../api/client";
+import { showToast } from "./Toast";
 import type { ExecutionResults } from "../api/types";
 
 interface Props {
@@ -7,7 +8,7 @@ interface Props {
 }
 
 export function ExecutePanel({ seedData }: Props) {
-  const [testDir, setTestDir] = useState("tests");
+  const [testDir, setTestDir] = useState(".testforge_output");
   const [fetched, setFetched] = useState<ExecutionResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,6 +23,10 @@ export function ExecutePanel({ seedData }: Props) {
         test_dir: testDir,
       });
       setFetched(res.results);
+      showToast(
+        `${res.results.passed}/${res.results.total} tests passed`,
+        res.results.failed > 0 ? "error" : "success"
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -47,7 +52,13 @@ export function ExecutePanel({ seedData }: Props) {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4">Execute Tests</h2>
+      <h2 className="text-2xl font-bold mb-1">Execute Tests</h2>
+      <p className="text-sm text-gray-500 mb-4">
+        Runs pytest on the specified test directory and shows pass/fail results.
+        Point this at your generated test output (default:{" "}
+        <code className="font-mono">.testforge_output</code>) or any test
+        directory.
+      </p>
 
       <div className="flex gap-2 mb-6">
         <input
@@ -80,15 +91,21 @@ export function ExecutePanel({ seedData }: Props) {
             </div>
             <div className="bg-white border rounded-lg p-4">
               <p className="text-sm text-gray-500">Passed</p>
-              <p className="text-2xl font-bold text-green-600">{results.passed}</p>
+              <p className="text-2xl font-bold text-green-600">
+                {results.passed}
+              </p>
             </div>
             <div className="bg-white border rounded-lg p-4">
               <p className="text-sm text-gray-500">Failed</p>
-              <p className="text-2xl font-bold text-red-600">{results.failed}</p>
+              <p className="text-2xl font-bold text-red-600">
+                {results.failed}
+              </p>
             </div>
             <div className="bg-white border rounded-lg p-4">
               <p className="text-sm text-gray-500">Errors</p>
-              <p className="text-2xl font-bold text-red-600">{results.errors}</p>
+              <p className="text-2xl font-bold text-red-600">
+                {results.errors}
+              </p>
             </div>
             <div className="bg-white border rounded-lg p-4">
               <p className="text-sm text-gray-500">Success Rate</p>
